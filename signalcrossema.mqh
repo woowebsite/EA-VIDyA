@@ -548,7 +548,15 @@ bool CSignalCrossEMA::InitWPR(CIndicators* indicators)
   }
 
   bool moveup(CiVIDyA* ma){
-    return  ma.Main(9) < ma.Main(1);
+    return  ma.Main(2) < ma.Main(1);
+  }
+
+  bool movedown(CiMA* ma){
+    return  ma.Main(9) > ma.Main(1);
+  }
+
+  bool movedown(CiVIDyA* ma){
+    return  ma.Main(2) > ma.Main(1);
   }
 
   //ADX
@@ -654,10 +662,10 @@ bool CSignalCrossEMA::CheckOpenLong(double& price,double& sl,double& tp,datetime
     //BUY CONTINUE 2
     //PRICE: VIDyA Slow
     if(
-      above(m_Fast, m_VIDyA)
+      above(m_VIDyA_Slow, m_Trend)
       && above(m_VIDyA, m_VIDyA_Slow)
-      && above(m_VIDyA_Slow, m_Trend)
-      && WPRCrossUp(m_WPR)
+      && above(m_Fast, m_VIDyA)
+      && WPRCrossUpStrong(m_WPR)
     ) 
     {
       is_buy_take_profit    = false;
@@ -668,14 +676,14 @@ bool CSignalCrossEMA::CheckOpenLong(double& price,double& sl,double& tp,datetime
       double spread         = m_symbol.Ask()-m_symbol.Bid();
       double unit           = PriceLevelUnit();
 
-      // double s1 = mFast - vidya_slow;
-      // double s2 = vidya_slow - mTrend;
-      // if(s1 < s2) return false;
+      double s1 = mFast - vidya;
+      double s2 = vidya - mTrend;
+      if(s1 < s2) return false;
 
 
-      price = m_symbol.NormalizePrice(vidya_slow - spread  * unit);
+      price = m_symbol.NormalizePrice(vidya - spread  * unit);
       sl    = m_symbol.NormalizePrice(vidya_slow - m_stop_loss * unit);
-      tp    = m_symbol.NormalizePrice(vidya_slow + 1.618 * m_stop_loss * unit);
+      tp    = m_symbol.NormalizePrice(vidya + 1.618 * m_stop_loss * unit);
 
       expiration  +=  m_expiration * PeriodSeconds(m_period);
        
@@ -702,13 +710,22 @@ bool CSignalCrossEMA::CheckCloseLong(double& price)
       price = m_symbol.NormalizePrice(mFast);
       return(true);
     }
+
+    if(crossdown(m_VIDyA, m_Trend )
+    && above(m_Fast, m_VIDyA_Slow)
+    && above(m_VIDyA, m_VIDyA_Slow)
+    ) {
+      double mFast          = FastEMA(1);
+      price = m_symbol.NormalizePrice(mFast);
+      return(true);
+    }
     
-    // if(WPRCrossDownStrong(m_WPR)
-    //   && adxGrowingDown(adx)
-    // ) {
-    //   price=m_symbol.NormalizePrice(m_symbol.Bid());
-    //   return(true);
-    // }
+    if(WPRCrossDownStrong(m_WPR)
+      && adxGrowingDown(adx) && adxStrong(adx)
+    ) {
+      price=m_symbol.NormalizePrice(m_symbol.Bid());
+      return(true);
+    }
 
     return(false);   
   }
@@ -728,64 +745,75 @@ bool CSignalCrossEMA::CheckCloseLong(double& price)
 //+------------------------------------------------------------------+
 bool CSignalCrossEMA::CheckOpenShort(double& price,double& sl,double& tp,datetime& expiration)
 {
-    return (false);
-  
 
-   if(
-      crossdown(m_VIDyA, m_Fast)
-      && above(m_Slow, m_Fast)
-      && !moveup(m_Fast)
-    ) 
-    {
-      is_buy_take_profit  = false;
-      double mFast       =FastEMA(1);
-      double mSlow   =SlowEMA(1);
-      double vidya    =VIDyA(1);
-      double mTrend    = TrendMA(1);
-      double spread=m_symbol.Ask()-m_symbol.Bid();
-      double unit  =PriceLevelUnit();
-
-      price = m_symbol.NormalizePrice(mFast );
-      sl    = m_symbol.NormalizePrice(mFast + m_stop_loss * unit);
-      tp    = m_symbol.NormalizePrice(mSlow);
-      expiration+=m_expiration * PeriodSeconds(m_period);
-       
-      Comment("BUY: VIDyA x M76");
-   
-      return(true);
-    }
-
-
-
-    //BUY BREAKOUT: MA76 x MA323
-    //PRICE: VIDyA
-    //STOPLOSS: 50
-    //TAKEPROFIT: Auto
+    //SELL CONTINUE 1
+    //PRICE: VIDyA Fast
     if(
-      crossdown(m_Fast, m_Slow)
-      && !above(m_VIDyA, m_Fast)
-      && !moveup(m_Fast)
-      && !moveup(m_BasisMA)      //Đề phòng sideway, reverse
-      && adxGrowingDown(adx)
-      && adxStrong(adx)
+      above(m_VIDyA_Slow, m_VIDyA)
+      && movedown(m_VIDyA)
+      && movedown(m_Fast)
+      && WPRCrossUp(m_WPR)
     ) 
     {
-      is_buy_take_profit  = false;
-      double ma       =FastEMA(1);
-      double maSlow   =SlowEMA(1);
-      double vidya    =VIDyA(1);
-      double ma323    = TrendMA(1);
-      double spread=m_symbol.Ask()-m_symbol.Bid();
-      double unit  =PriceLevelUnit();
+      is_buy_take_profit    = false;
+      double mFast          = FastEMA(1);
+      double vidya          = VIDyA(1);
+      double vidya_slow     = VIDyA_Slow(1);
+      double mTrend         = TrendMA(1);
+      double spread         = m_symbol.Ask()-m_symbol.Bid();
+      double unit           = PriceLevelUnit();
 
-      price=m_symbol.NormalizePrice(vidya);
-      sl   = m_symbol.NormalizePrice(vidya + m_stop_loss * unit);
-      expiration+=m_expiration * PeriodSeconds(m_period);
+      double s1 = vidya - mFast;
+      double s2 = mFast - vidya_slow;
+      if(s1 < s2) return false;
+      
+      price = m_symbol.NormalizePrice(vidya + spread  * unit);
+      sl    = m_symbol.NormalizePrice(mFast + m_stop_loss * unit);
+      tp    = m_symbol.NormalizePrice(vidya - 1.618 * m_stop_loss * unit);
+
+      //TP too large problem
+      if(price - sl < 4 * m_stop_loss * unit) {
+        sl = m_symbol.NormalizePrice(mFast);
+      }
+
+
+      expiration  +=  m_expiration * PeriodSeconds(m_period);
        
-      Comment("BUY: VIDyA x MA323", m_symbol.Ask());
-   
       return(true);
     }
+
+
+    //SELL CONTINUE 2
+    //PRICE: VIDyA Slow
+    if(
+      above(m_Trend, m_VIDyA_Slow)
+      && above(m_VIDyA_Slow, m_VIDyA )
+      && above(m_VIDyA, m_Fast )
+      && WPRCrossDownStrong(m_WPR)
+    ) 
+    {
+      is_buy_take_profit    = false;
+      double mFast          = FastEMA(1);
+      double vidya          = VIDyA(1);
+      double vidya_slow     = VIDyA_Slow(1);
+      double mTrend         = TrendMA(1);
+      double spread         = m_symbol.Ask()-m_symbol.Bid();
+      double unit           = PriceLevelUnit();
+
+      double s1 = mFast - vidya;
+      double s2 = vidya - mTrend;
+      if(s1 < s2) return false;
+
+
+      price = m_symbol.NormalizePrice(vidya + spread  * unit);
+      sl    = m_symbol.NormalizePrice(vidya_slow + m_stop_loss * unit);
+      tp    = m_symbol.NormalizePrice(vidya - 1.618 * m_stop_loss * unit);
+
+      expiration  +=  m_expiration * PeriodSeconds(m_period);
+       
+      return(true);
+    }
+
     return(false);
 }
 
@@ -799,27 +827,31 @@ bool CSignalCrossEMA::CheckOpenShort(double& price,double& sl,double& tp,datetim
 //+------------------------------------------------------------------+
 bool CSignalCrossEMA::CheckCloseShort(double& price)
   {
-   return (false);
-   
-    //Canceled 
-    if(adxGrowingUp(adx) && adxStrong(adx)){
-      price=m_symbol.NormalizePrice(m_symbol.Bid());
+    if(crossup(m_VIDyA, m_Fast )
+      && above(m_VIDyA_Slow, m_Fast)
+      && above(m_VIDyA_Slow, m_VIDyA)
+    ) {
+      double mFast          = FastEMA(1);
+      price = m_symbol.NormalizePrice(mFast);
       return(true);
     }
 
-    //Big profit
-    if(crossup(m_VIDyA, m_Fast )
+    if(crossup(m_VIDyA, m_Trend )
+    && above(m_VIDyA_Slow, m_Fast)
+    && above(m_VIDyA_Slow, m_VIDyA)
+    ) {
+      double mFast          = FastEMA(1);
+      price = m_symbol.NormalizePrice(mFast);
+      return(true);
+    }
     
+    if(WPRCrossUpStrong(m_WPR)
+      && adxGrowingUp(adx) && adxStrong(adx)
     ) {
       price=m_symbol.NormalizePrice(m_symbol.Bid());
       return(true);
     }
 
-    // if(adxGrowingDown(adx) && adxStrong(adx)) {
-    //   price=m_symbol.NormalizePrice(m_symbol.Ask());
-    //   return(true);
-    // }
-
-    return false;
+    return(false);   
    
   }
